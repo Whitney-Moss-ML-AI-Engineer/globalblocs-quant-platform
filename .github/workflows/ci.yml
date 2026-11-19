@@ -91,14 +91,17 @@ jobs:
       - run: cd mobile && npm ci && npm run ios:init
       - name: Compile for the iPhone simulator (verifies the project; no signing)
         run: |
+          set -o pipefail
           cd mobile/ios/App
-          xcodebuild -project App.xcodeproj -scheme App -configuration Debug -sdk iphonesimulator \
+          xcodebuild -workspace App.xcworkspace -scheme App -configuration Debug -sdk iphonesimulator \
             -destination 'generic/platform=iOS Simulator' CODE_SIGNING_ALLOWED=NO build | tail -20
       - name: Package the Xcode project for signing
         run: |
           V=$(node -p "require('./mobile/package.json').version")
           mkdir -p mobile-out
-          cd mobile && zip -qr "../mobile-out/GlobalBLOCS-Quant-$V-iOS-Xcode-project.zip" ios -x "ios/App/build/*" "ios/DerivedData/*"
+          cp mobile/IOS-SETUP.txt mobile-out/ 2>/dev/null || true
+          zip -qr "mobile-out/GlobalBLOCS-Quant-$V-iOS-Xcode-project.zip" mobile frontend/out \
+            -x "mobile/node_modules/*" "mobile/android/*" "mobile/ios/App/Pods/*" "mobile/ios/App/build/*" "*/DerivedData/*"
       - uses: actions/upload-artifact@v4
         with:
           name: installer-ios

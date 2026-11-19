@@ -1,0 +1,11 @@
+GlobalBLOCS Quant - iPhone app setup (needs a Mac with Xcode and an Apple Developer account)
+
+1. Unzip GlobalBLOCS-Quant-<version>-iOS-Xcode-project.zip.
+2. In Terminal:   cd mobile && npm ci && npx cap sync ios
+   (installs Capacitor and its CocoaPods; install CocoaPods first with "sudo gem install cocoapods" if needed)
+3. Open mobile/ios/App/App.xcworkspace in Xcode (the .xcworkspace, not the .xcodeproj).
+4. Select the "App" target > Signing & Capabilities > choose your Team (Heavy Duty Security Co. developer account).
+   Change the Bundle Identifier if Xcode reports it is taken.
+5. Plug in your iPhone, select it as the run destination, and press Run.
+   On first launch, allow "Local Network" access so the app can reach your GlobalBLOCS desktop.
+6. For TestFlight / App Store: Product > Archive, then Distribute App.
