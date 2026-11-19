@@ -1,0 +1,12 @@
+{
+  "appId": "com.heavydutysecurity.globalblocs.quant",
+  "appName": "GlobalBLOCS Quant",
+  "webDir": "www",
+  "backgroundColor": "#0a1628",
+  "server": { "androidScheme": "https" },
+  "plugins": {
+    "CapacitorHttp": { "enabled": true }
+  },
+  "android": { "allowMixedContent": false },
+  "ios": { "contentInset": "always" }
+}

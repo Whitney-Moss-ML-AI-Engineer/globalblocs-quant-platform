@@ -1,10 +1,11 @@
 "use client";
 import { useEffect, useState } from "react";
 import { CartesianGrid, Line, LineChart, ResponsiveContainer, Tooltip, XAxis, YAxis, Bar, BarChart } from "recharts";
-import { api, pct, usd } from "@/lib/api";
+import { api, AuthError, disconnect, getToken, isDesktopApp, isPhoneApp, pct, usd } from "@/lib/api";
+import { ConnectScreen, PairPhone } from "./connect";
 
 const TABS = ["Executive Overview", "Day Trading", "Stock Research", "Portfolio", "AI Prediction Lab",
-  "Strategy Lab", "Risk", "News & Economy", "Trading Journal", "Orders"] as const;
+  "Strategy Lab", "Risk", "News & Economy", "Trading Journal", "Orders", "Pair Phone"] as const;
 type Tab = (typeof TABS)[number];
 
 function Source({ src, latency, asOf }: { src?: string; latency?: string; asOf?: string }) {
@@ -189,12 +190,30 @@ function Journal() {
 
 export default function Home() {
   const [tab, setTab] = useState<Tab>("Executive Overview");
+  const [state, setState] = useState<"checking" | "connect" | "ready">("checking");
+  const [whoami, setWhoami] = useState<any>(null);
+  const check = () => {
+    if (isPhoneApp() && !(getToken() && localStorage.getItem("gb_server"))) { setState("connect"); return; }
+    api("/auth/me").then(u => { setWhoami(u); setState("ready"); })
+      .catch(e => setState(e instanceof AuthError || isPhoneApp() ? "connect" : "ready"));
+  };
+  useEffect(() => {
+    check();
+    const onAuth = () => setState("connect");
+    window.addEventListener("gb-auth-required", onAuth);
+    return () => window.removeEventListener("gb-auth-required", onAuth);
+  }, []);
+  if (state === "checking") return <div className="p-6 text-slate-400">Connecting…</div>;
+  if (state === "connect") return <ConnectScreen onDone={check} />;
+  const tabs = TABS.filter(t => t !== "Pair Phone" || isDesktopApp());
   const view: Record<Tab, JSX.Element> = { "Executive Overview": <Executive />, "Day Trading": <DayTrading />, "Stock Research": <Research />,
     Portfolio: <Portfolio />, "AI Prediction Lab": <MLLab />, "Strategy Lab": <StrategyLab />, Risk: <Risk />, "News & Economy": <Agents />,
-    "Trading Journal": <Journal />, Orders: <Orders /> };
-  return (<div className="flex min-h-screen flex-col md:flex-row">
-    <nav className="md:w-56 bg-navy-800 border-r border-navy-700 p-3 flex md:flex-col gap-1 overflow-x-auto">
+    "Trading Journal": <Journal />, Orders: <Orders />, "Pair Phone": <PairPhone /> };
+  return (<div className="flex min-h-screen flex-col md:flex-row" style={{ paddingTop: "env(safe-area-inset-top)", paddingBottom: "env(safe-area-inset-bottom)" }}>
+    <nav className="md:w-56 bg-navy-800 border-r border-navy-700 p-3 flex md:flex-col gap-1 overflow-x-auto sticky top-0 z-10">
       <div className="text-gold font-bold text-lg mb-3 hidden md:block">GlobalBLOCS<div className="text-xs text-slate-400 font-normal">Quant Intelligence</div></div>
-      {TABS.map(t => <button key={t} onClick={() => setTab(t)} className={`text-left px-3 py-2 rounded text-sm whitespace-nowrap ${t === tab ? "bg-navy-700 text-gold" : "hover:bg-navy-700"}`}>{t}</button>)}</nav>
-    <main className="flex-1 p-4 md:p-6"><h1 className="text-xl font-semibold mb-4">{tab}</h1>{view[tab]}</main></div>);
+      {tabs.map(t => <button key={t} onClick={() => setTab(t)} className={`text-left px-3 py-2 rounded text-sm whitespace-nowrap ${t === tab ? "bg-navy-700 text-gold" : "hover:bg-navy-700"}`}>{t}</button>)}
+      {(isPhoneApp() || whoami?.user !== "local") && <button className="text-left px-3 py-2 rounded text-sm whitespace-nowrap text-slate-400 md:mt-auto"
+        onClick={() => { disconnect(); setState("connect"); }}>{isPhoneApp() ? "Disconnect" : "Sign out"}</button>}</nav>
+    <main className="flex-1 p-4 md:p-6 min-w-0"><h1 className="text-xl font-semibold mb-4">{tab}</h1>{view[tab]}</main></div>);
 }

@@ -8,14 +8,16 @@ from functools import lru_cache
 
 import numpy as np
 import pandas as pd
-from fastapi import Depends, FastAPI, HTTPException, WebSocket
+import socket
+
+from fastapi import Depends, FastAPI, HTTPException, Request, WebSocket
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.security import OAuth2PasswordRequestForm
 from pydantic import BaseModel, Field
 
 from agents.orchestrator import Ctx, run_all
 from agents.rag import Retriever
-from backend.app.security import issue_token, require, verify_password
+from backend.app.security import current_user, devices, is_local, issue_token, require, verify_password
 from backtesting.engine import Costs, StrategyConfig, run_backtest, walk_forward_optimize
 from brokerage.base import NotSupported, OrderRequest
 from brokerage.execution import AuditLog, OrderManager, RiskLimits
@@ -26,7 +28,8 @@ from quant import factors, indicators as ind, portfolio, risk, signals
 
 app = FastAPI(title="GlobalBLOCS Quant Platform API", version="1.0.0",
               description="Research outputs are not investment advice and do not guarantee returns.")
-app.add_middleware(CORSMiddleware, allow_origins=os.getenv("CORS_ORIGINS", "http://localhost:3000,app://.").split(","),
+app.add_middleware(CORSMiddleware, allow_origins=os.getenv("CORS_ORIGINS", "http://localhost:3000,app://gb").split(",")
+                   + ["https://localhost", "capacitor://localhost", "http://localhost"],  # mobile app WebViews
                    allow_methods=["*"], allow_headers=["*"])
 
 DEFAULT_UNIVERSE = os.getenv("DEFAULT_UNIVERSE", "AAPL,MSFT,NVDA,AMZN,GOOGL,META,JPM,XOM,JNJ,V,PG,HD,COST,AVGO,LLY").split(",")
@@ -70,9 +73,71 @@ def login(form: OAuth2PasswordRequestForm = Depends()):
     return {"access_token": issue_token(form.username, "admin"), "token_type": "bearer"}
 
 
+@app.get("/auth/me", tags=["auth"])
+def me(u=Depends(current_user)):
+    return u
+
+
+# ---------------- phone pairing (desktop shows a code, phone enters it) ----------------
+def _lan_addresses() -> list[str]:
+    ips = set()
+    try:
+        s = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
+        s.connect(("10.255.255.255", 1))   # no packet is sent; picks the outbound interface
+        ips.add(s.getsockname()[0])
+        s.close()
+    except OSError:
+        pass
+    port = os.getenv("ENGINE_PORT", "8765")
+    return [f"http://{ip}:{port}" for ip in sorted(ips) if not ip.startswith("127.")]
+
+
+@app.post("/pairing/start", tags=["pairing"])
+def pairing_start(request: Request, u=Depends(require("approve"))):
+    if not is_local(request):
+        raise HTTPException(403, "pairing codes can only be generated on the desktop itself")
+    if os.getenv("MOBILE_ACCESS", "false").lower() != "true":
+        raise HTTPException(409, "Phone access is off. Re-run the Setup Wizard and allow phone access over Wi-Fi.")
+    out = devices.start(role="trader")
+    audit.write(u["user"], "pairing.started", {})
+    return {**out, "server_urls": _lan_addresses()}
+
+
+class ClaimReq(BaseModel):
+    code: str
+    device_name: str = "Phone"
+
+
+@app.post("/pairing/claim", tags=["pairing"])
+def pairing_claim(req: ClaimReq, request: Request):
+    try:
+        out = devices.claim(req.code, req.device_name)
+    except PermissionError as e:
+        audit.write(f"device:{req.device_name}", "pairing.failed", {"ip": request.client.host if request.client else None})
+        raise HTTPException(403, str(e)) from e
+    audit.write(f"device:{req.device_name}", "pairing.completed", {"device_id": out["device_id"]})
+    return out
+
+
+@app.get("/pairing/devices", tags=["pairing"])
+def pairing_devices(u=Depends(require("read"))):
+    return devices.list()
+
+
+@app.delete("/pairing/devices/{dev_id}", tags=["pairing"])
+def pairing_revoke(dev_id: str, request: Request, u=Depends(require("approve"))):
+    if not is_local(request):
+        raise HTTPException(403, "unpair devices from the desktop")
+    if not devices.revoke(dev_id):
+        raise HTTPException(404, "device not found")
+    audit.write(u["user"], "pairing.revoked", {"device_id": dev_id})
+    return {"revoked": dev_id}
+
+
 @app.get("/health", tags=["system"])
 def health():
-    return {"status": "ok", "data_provider": provider.name, "live_trading_enabled": limits.live_trading_enabled,
+    return {"status": "ok", "app": "globalblocs-quant", "data_provider": provider.name,
+            "live_trading_enabled": limits.live_trading_enabled,
             "audit_chain_valid": audit.verify()}
 
 

@@ -1,19 +1,24 @@
-"""Authentication, RBAC, and secret encryption."""
+"""Authentication, RBAC, device pairing and secret encryption."""
 from __future__ import annotations
 
 import hashlib
 import hmac
+import json
 import os
 import secrets
 import time
+import uuid
+from pathlib import Path
 
 import jwt
 from cryptography.fernet import Fernet
-from fastapi import Depends, HTTPException
+from fastapi import Depends, HTTPException, Request
 from fastapi.security import OAuth2PasswordBearer
 
 JWT_SECRET = os.getenv("JWT_SECRET") or secrets.token_urlsafe(48)
 TOKEN_TTL = int(os.getenv("TOKEN_TTL_SECONDS", "3600"))
+DEVICE_TOKEN_TTL = int(os.getenv("DEVICE_TOKEN_TTL_SECONDS", str(30 * 24 * 3600)))
+LOCAL_HOSTS = {"127.0.0.1", "::1", "localhost", "testclient"}
 
 # Role-based access control matrix
 PERMISSIONS = {
@@ -38,12 +43,21 @@ def verify_password(pw: str, stored: str) -> bool:
     return hmac.compare_digest(hash_password(pw, bytes.fromhex(salt)).split("$")[1], dk)
 
 
-def issue_token(user: str, role: str) -> str:
-    return jwt.encode({"sub": user, "role": role, "exp": int(time.time()) + TOKEN_TTL}, JWT_SECRET, algorithm="HS256")
+def issue_token(user: str, role: str, ttl: int = TOKEN_TTL, device_id: str | None = None) -> str:
+    claims = {"sub": user, "role": role, "exp": int(time.time()) + ttl}
+    if device_id:
+        claims["dev"] = device_id
+    return jwt.encode(claims, JWT_SECRET, algorithm="HS256")
 
 
-def current_user(token: str | None = Depends(oauth2)) -> dict:
-    if os.getenv("AUTH_DISABLED", "false").lower() == "true":   # local single-user desktop mode only
+def is_local(request: Request) -> bool:
+    return bool(request.client) and request.client.host in LOCAL_HOSTS
+
+
+def current_user(request: Request, token: str | None = Depends(oauth2)) -> dict:
+    # Single-user desktop mode skips sign-in ONLY for requests from this computer. Phones and other
+    # machines on the network must always present a token.
+    if os.getenv("AUTH_DISABLED", "false").lower() == "true" and is_local(request) and not token:
         return {"user": "local", "role": "trader"}
     if not token:
         raise HTTPException(401, "not authenticated")
@@ -51,7 +65,9 @@ def current_user(token: str | None = Depends(oauth2)) -> dict:
         p = jwt.decode(token, JWT_SECRET, algorithms=["HS256"])
     except jwt.PyJWTError as e:
         raise HTTPException(401, f"invalid token: {e}") from e
-    return {"user": p["sub"], "role": p["role"]}
+    if p.get("dev") and not devices.is_active(p["dev"]):
+        raise HTTPException(401, "this device has been unpaired")
+    return {"user": p["sub"], "role": p["role"], "device": p.get("dev")}
 
 
 def require(perm: str):
@@ -60,6 +76,65 @@ def require(perm: str):
             raise HTTPException(403, f"role '{u['role']}' lacks permission '{perm}'")
         return u
     return dep
+
+
+class DeviceRegistry:
+    """Phones paired with this desktop. A pairing code is 6 digits, single-use, valid 5 minutes and
+    locked after 5 wrong attempts. Paired devices get a long-lived token that can be revoked here."""
+
+    def __init__(self, path: str | None = None):
+        self.path = Path(path or os.getenv("PAIRED_DEVICES", "data/devices.json"))
+        self.pending: dict | None = None
+
+    def _load(self) -> dict:
+        try:
+            return json.loads(self.path.read_text())
+        except (FileNotFoundError, json.JSONDecodeError):
+            return {}
+
+    def _save(self, d: dict):
+        self.path.parent.mkdir(parents=True, exist_ok=True)
+        self.path.write_text(json.dumps(d, indent=2))
+
+    def start(self, role: str = "trader") -> dict:
+        code = f"{secrets.randbelow(10**6):06d}"
+        self.pending = {"hash": hashlib.sha256(code.encode()).hexdigest(), "expires": time.time() + 300,
+                        "attempts": 0, "role": role}
+        return {"code": code, "expires_in_seconds": 300}
+
+    def claim(self, code: str, device_name: str) -> dict:
+        p = self.pending
+        if not p or time.time() > p["expires"]:
+            raise PermissionError("no active pairing code; generate a new one on the desktop")
+        p["attempts"] += 1
+        if p["attempts"] > 5:
+            self.pending = None
+            raise PermissionError("too many attempts; generate a new code")
+        if not hmac.compare_digest(hashlib.sha256(code.strip().encode()).hexdigest(), p["hash"]):
+            raise PermissionError("wrong code")
+        self.pending = None
+        dev_id = uuid.uuid4().hex[:12]
+        d = self._load()
+        d[dev_id] = {"name": device_name[:60] or "Phone", "role": p["role"], "paired_at": time.strftime("%Y-%m-%d %H:%M:%S")}
+        self._save(d)
+        return {"device_id": dev_id, "role": p["role"],
+                "access_token": issue_token(f"device:{device_name[:30]}", p["role"], DEVICE_TOKEN_TTL, dev_id)}
+
+    def list(self) -> dict:
+        return self._load()
+
+    def revoke(self, dev_id: str) -> bool:
+        d = self._load()
+        if d.pop(dev_id, None) is None:
+            return False
+        self._save(d)
+        return True
+
+    def is_active(self, dev_id: str) -> bool:
+        return dev_id in self._load()
+
+
+devices = DeviceRegistry()
 
 
 class SecretBox:

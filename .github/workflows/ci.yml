@@ -52,8 +52,61 @@ jobs:
             desktop/dist/*.deb
           retention-days: 30
 
+  android:
+    needs: [python, frontend]
+    if: github.event_name != 'pull_request'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: "17"
+      - run: cd frontend && npm ci && npm run build
+      - run: cd mobile && npm ci && npm run android:apk
+      - name: Name the APK
+        run: |
+          V=$(node -p "require('./mobile/package.json').version")
+          mkdir -p mobile-out
+          cp mobile/android/app/build/outputs/apk/debug/app-debug.apk "mobile-out/GlobalBLOCS-Quant-$V-android.apk"
+      - uses: actions/upload-artifact@v4
+        with:
+          name: installer-android
+          path: mobile-out/*.apk
+          retention-days: 30
+
+  ios:
+    needs: [python, frontend]
+    if: github.event_name != 'pull_request'
+    runs-on: macos-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+      - run: cd frontend && npm ci && npm run build
+      - run: cd mobile && npm ci && npm run ios:init
+      - name: Compile for the iPhone simulator (verifies the project; no signing)
+        run: |
+          cd mobile/ios/App
+          xcodebuild -project App.xcodeproj -scheme App -configuration Debug -sdk iphonesimulator \
+            -destination 'generic/platform=iOS Simulator' CODE_SIGNING_ALLOWED=NO build | tail -20
+      - name: Package the Xcode project for signing
+        run: |
+          V=$(node -p "require('./mobile/package.json').version")
+          mkdir -p mobile-out
+          cd mobile && zip -qr "../mobile-out/GlobalBLOCS-Quant-$V-iOS-Xcode-project.zip" ios -x "ios/App/build/*" "ios/DerivedData/*"
+      - uses: actions/upload-artifact@v4
+        with:
+          name: installer-ios
+          path: mobile-out/*.zip
+          retention-days: 30
+
   release:
-    needs: [desktop]
+    needs: [desktop, android, ios]
     if: always() && github.ref == 'refs/heads/main' && github.event_name != 'pull_request' && needs.desktop.result != 'cancelled'
     runs-on: ubuntu-latest
     permissions:
@@ -74,5 +127,5 @@ jobs:
             gh release upload "$VERSION" installers/* --clobber
           else
             gh release create "$VERSION" installers/* --target "$GITHUB_SHA" --title "GlobalBLOCS Quant $VERSION" \
-              --notes "Desktop installers. Windows: run GlobalBLOCS-Quant-Setup-*.exe (unsigned: SmartScreen > More info > Run anyway). macOS: open the .dmg (unsigned: right-click > Open). Linux: AppImage or .deb. Requires Python 3.10+; the Setup Wizard runs on first launch."
+              --notes "Desktop installers and phone app. Android: install GlobalBLOCS-Quant-*-android.apk (allow installs from this source). iPhone: open the iOS Xcode project zip in Xcode, set your Apple Developer team, and run on your phone. Windows: run GlobalBLOCS-Quant-Setup-*.exe (unsigned: SmartScreen > More info > Run anyway). macOS: open the .dmg (unsigned: right-click > Open). Linux: AppImage or .deb. Requires Python 3.10+; the Setup Wizard runs on first launch."
           fi

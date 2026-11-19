@@ -119,3 +119,23 @@ def test_api_endpoints():
     assert "weights" in c.post("/portfolio/optimize", json={"symbols": ["AAPL", "MSFT", "JPM"], "method": "hrp"}).json()
     assert "stats" in c.post("/backtest", json={"symbol": "AAPL"}).json()
     assert len(c.get("/daytrading/top?top=5").json()["opportunities"]) == 5
+
+
+def test_phone_pairing_and_remote_auth(tmp_path, monkeypatch):
+    from backend.app import security
+    from backend.app.main import app
+    monkeypatch.setenv("MOBILE_ACCESS", "true")
+    security.devices.path = tmp_path / "devices.json"
+    local = TestClient(app)                                   # desktop (local client)
+    phone = TestClient(app, client=("192.168.1.50", 50000))  # phone on Wi-Fi
+    assert phone.get("/health").status_code == 200
+    assert phone.get("/signals/AAPL").status_code == 401        # local bypass never applies to the phone
+    assert phone.post("/pairing/start").status_code in (401, 403)
+    code = local.post("/pairing/start").json()["code"]
+    assert phone.post("/pairing/claim", json={"code": "000000" if code != "000000" else "111111"}).status_code == 403
+    tok = phone.post("/pairing/claim", json={"code": code, "device_name": "Pixel"}).json()
+    h = {"Authorization": f"Bearer {tok['access_token']}"}
+    assert phone.get("/signals/AAPL", headers=h).status_code == 200
+    assert phone.post("/pairing/claim", json={"code": code}).status_code == 403   # single use
+    local.delete(f"/pairing/devices/{tok['device_id']}")
+    assert phone.get("/signals/AAPL", headers=h).status_code == 401              # revoked

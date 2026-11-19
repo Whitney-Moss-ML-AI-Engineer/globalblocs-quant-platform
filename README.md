@@ -75,3 +75,16 @@ Working and tested: quant engine, backtester, ML pipeline, agents, paper trading
 Requires your credentials to exercise: E*TRADE (sandbox first), Plaid/SnapTrade for Chase, Polygon, FRED, Anthropic.
 Scaffolded for you to complete: Airflow task bodies, database persistence (the API currently keeps proposals in memory and the
 audit log in a file), Settings screen for connecting brokers after setup, index-development module UI, options analytics UI.
+
+## Phone app (Android + iPhone)
+
+`mobile/` wraps the same dashboard in a native app with Capacitor. The phone has no analysis engine of its own, so it connects to:
+
+* **Your desktop over home Wi-Fi.** In the Setup Wizard, tick "Allow my phone to connect". Open the desktop's **Pair Phone** tab,
+  generate a 6-digit code (single-use, expires in 5 minutes), and enter the address and code in the phone app. Unpair phones from the same tab.
+  Traffic on the home network is plain HTTP, so pair only on a network you trust.
+* **A cloud server (HTTPS)** once the AWS deployment is running: choose "Sign in to a server" in the app.
+
+Builds: every push to `main` builds `GlobalBLOCS-Quant-<version>-android.apk` (debug-signed, sideload) and an iOS Xcode project
+(open in Xcode, set your Apple Developer team, run on your iPhone). Store releases need a release-signing keystore (Google Play)
+and an Apple Developer account (App Store/TestFlight). Local builds: `cd mobile && npm ci && npm run android:apk` or `npm run ios:init && npm run open:ios`.

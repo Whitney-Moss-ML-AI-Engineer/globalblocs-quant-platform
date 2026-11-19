@@ -59,6 +59,7 @@ function collect() {
   return {
     secrets,
     settings: { provider: v("provider"), paperCash: +v("paperCash"), username: v("username"), authMode: v("authMode"),
+      mobileAccess: $("mobileAccess").checked,
       riskLimits: { maxPositionValue: +v("maxPos"), maxPositionPct: +v("maxPct") / 100, maxExposurePct: +v("maxExp") / 100,
         dailyLossLimit: +v("dailyLoss"), maxOrdersPerDay: +v("maxOrders") },
       brokers: { paper: true, etrade: !!secrets.ETRADE_CONSUMER_KEY, chaseReadOnly: !!secrets.PLAID_CLIENT_ID }, liveTrading: false },
@@ -74,7 +75,8 @@ function summarize() {
     <tr><td>Live trading</td><td>Disabled (enable in Settings after paper trading)</td></tr>
     <tr><td>Max position</td><td>$${r.maxPositionValue.toLocaleString()} / ${(r.maxPositionPct * 100).toFixed(0)}% of equity</td></tr>
     <tr><td>Daily loss limit</td><td>$${r.dailyLossLimit.toLocaleString()}</td></tr>
-    <tr><td>Sign-in</td><td>${c.authMode} as ${c.username}</td></tr></table>`;
+    <tr><td>Sign-in</td><td>${c.authMode} as ${c.username}</td></tr>
+    <tr><td>Phone app access</td><td>${c.mobileAccess ? "Allowed on home Wi-Fi (pair from the Pair Phone tab)" : "Off"}</td></tr></table>`;
 }
 
 $("back").onclick = () => { if (i > 0) { i--; render(); } };

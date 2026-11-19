@@ -104,6 +104,8 @@ function engineEnv() {
     LIVE_TRADING_ENABLED: "false", AUTH_DISABLED: c.authMode === "local-single-user" ? "true" : "false",
     ADMIN_USER: c.username || "admin", PAPER_CASH: String(c.paperCash || 100000),
     AUDIT_LOG: path.join(USER, "audit.jsonl"), CORS_ORIGINS: "app://gb",
+    MOBILE_ACCESS: c.mobileAccess ? "true" : "false", ENGINE_PORT: String(PORT),
+    PAIRED_DEVICES: path.join(USER, "devices.json"),
     MAX_POSITION_VALUE: String(r.maxPositionValue ?? 10000), MAX_POSITION_PCT: String(r.maxPositionPct ?? 0.1),
     MAX_EXPOSURE_PCT: String(r.maxExposurePct ?? 0.95), DAILY_LOSS_LIMIT: String(r.dailyLossLimit ?? 1000),
     MAX_ORDERS_PER_DAY: String(r.maxOrdersPerDay ?? 25) };
@@ -120,7 +122,9 @@ function waitHealthy(tries = 120) {
 
 async function startEngineAndOpen() {
   if (!engine) {
-    engine = spawn(venvPython(), ["-m", "uvicorn", "backend.app.main:app", "--host", "127.0.0.1", "--port", String(PORT)],
+    // Phone access listens on the home network; otherwise the engine is reachable only from this computer.
+    const host = readJSON(CONFIG, {}).mobileAccess ? "0.0.0.0" : "127.0.0.1";
+    engine = spawn(venvPython(), ["-m", "uvicorn", "backend.app.main:app", "--host", host, "--port", String(PORT)],
       { cwd: USER, env: engineEnv() });
     engine.stderr.on("data", (d) => fs.appendFileSync(path.join(USER, "engine.log"), d));
     engine.on("exit", () => { engine = null; });
