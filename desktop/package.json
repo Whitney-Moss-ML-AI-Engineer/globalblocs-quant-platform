@@ -3,7 +3,10 @@
   "productName": "GlobalBLOCS Quant",
   "version": "1.0.0",
   "description": "GlobalBLOCS Quantitative Trading & Investment Intelligence Platform (desktop)",
-  "author": "Heavy Duty Security Co., LLC",
+  "author": {
+    "name": "Heavy Duty Security Co., LLC",
+    "email": "196488821+Whitney-Moss-ML-AI-Engineer@users.noreply.github.com"
+  },
   "main": "main.js",
   "scripts": {
     "prebuild": "cd ../frontend && npm ci && npm run build",
@@ -80,7 +83,8 @@
         "AppImage",
         "deb"
       ],
-      "category": "Finance"
+      "category": "Finance",
+      "maintainer": "Heavy Duty Security Co., LLC"
     },
     "publish": [
       {
@@ -94,5 +98,6 @@
   "repository": {
     "type": "git",
     "url": "https://github.com/Whitney-Moss-ML-AI-Engineer/globalblocs-quant-platform.git"
-  }
+  },
+  "homepage": "https://github.com/Whitney-Moss-ML-AI-Engineer/globalblocs-quant-platform"
 }
