@@ -1,0 +1,129 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta http-equiv="Content-Security-Policy" content="default-src 'self'; style-src 'self' 'unsafe-inline'; script-src 'self'" />
+<title>GlobalBLOCS Quant — Setup Wizard</title>
+<style>
+  :root { --navy:#0a1628; --panel:#10213b; --line:#1a3157; --gold:#c9a227; --text:#e2e8f0; --muted:#94a3b8; --ok:#34d399; --bad:#f87171; }
+  * { box-sizing: border-box; } body { margin:0; font-family: Inter, Segoe UI, system-ui, sans-serif; background:var(--navy); color:var(--text); }
+  .wrap { display:grid; grid-template-columns: 260px 1fr; height:100vh; }
+  aside { background:var(--panel); border-right:1px solid var(--line); padding:28px 20px; }
+  aside h1 { color:var(--gold); font-size:20px; margin:0 0 4px; } aside p { color:var(--muted); font-size:12px; margin:0 0 28px; }
+  .step { padding:9px 12px; border-radius:8px; font-size:14px; color:var(--muted); margin-bottom:4px; }
+  .step.active { background:var(--line); color:var(--gold); } .step.done { color:var(--ok); }
+  main { padding:36px 48px; display:flex; flex-direction:column; overflow:auto; }
+  h2 { margin:0 0 8px; } .lead { color:var(--muted); margin:0 0 24px; max-width:720px; line-height:1.5; }
+  label { display:block; font-size:13px; color:var(--muted); margin:14px 0 4px; }
+  input, select { width:100%; max-width:520px; background:var(--panel); border:1px solid var(--line); color:var(--text); padding:9px 10px; border-radius:6px; font-size:14px; }
+  .row { display:flex; gap:16px; flex-wrap:wrap; } .row > div { flex:1; min-width:220px; }
+  .box { background:var(--panel); border:1px solid var(--line); border-radius:10px; padding:16px; margin:12px 0; max-width:760px; font-size:14px; line-height:1.5; }
+  .warn { border-color:#7c5e10; } .chk { display:flex; gap:10px; align-items:flex-start; margin:10px 0; font-size:14px; } .chk input { width:auto; margin-top:3px; }
+  #log { background:#050c18; font-family:Consolas, monospace; font-size:12px; height:260px; overflow:auto; padding:10px; border-radius:8px; white-space:pre-wrap; max-width:900px; }
+  footer { margin-top:auto; padding-top:24px; display:flex; gap:10px; }
+  button { padding:10px 22px; border-radius:6px; border:0; font-weight:600; cursor:pointer; font-size:14px; }
+  .primary { background:var(--gold); color:var(--navy); } .ghost { background:transparent; color:var(--text); border:1px solid var(--line); }
+  button:disabled { opacity:.4; cursor:not-allowed; } .ok { color:var(--ok); } .bad { color:var(--bad); }
+  .hidden { display:none; } table { border-collapse:collapse; } td { padding:4px 16px 4px 0; font-size:14px; }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <aside>
+    <h1>GlobalBLOCS Quant</h1><p>Setup Wizard · v1.0</p>
+    <div id="steps"></div>
+  </aside>
+  <main>
+    <section data-step="Welcome">
+      <h2>Welcome</h2>
+      <p class="lead">This wizard sets up the GlobalBLOCS quantitative research and trading-intelligence platform on this computer.
+        It installs the local analytics engine, connects market-data sources, configures brokerage connections (paper trading by default),
+        sets your risk limits, and secures the app with a passcode. You can change everything later in Settings.</p>
+      <div class="box">You will need: Python 3.10 or newer, about 3 GB of free disk space, and an internet connection for the engine install.
+        API keys (Polygon, FRED, E*TRADE, Plaid) are optional and can be added later.</div>
+    </section>
+
+    <section data-step="Disclosures">
+      <h2>License and risk disclosures</h2>
+      <div class="box warn">This software produces quantitative research, model forecasts and trading signals. They are not investment advice and do not
+        guarantee any return. Trading securities involves risk of loss. Backtests and model results are hypothetical and may not reflect future results.
+        Signals are labeled with their data source and whether data is real-time, delayed or simulated.</div>
+      <div class="box">AI agents can only <b>propose</b> trades. Every live order requires your explicit approval with a typed confirmation phrase,
+        passes automated risk checks, and is recorded in a tamper-evident audit log. Brokerage passwords are never seen or stored by this app.</div>
+      <label class="chk"><input type="checkbox" id="acceptLicense"> I have read and accept the license agreement.</label>
+      <label class="chk"><input type="checkbox" id="acceptRisk"> I understand forecasts and signals are not guarantees and that I am responsible for my trading decisions.</label>
+    </section>
+
+    <section data-step="System check">
+      <h2>System check</h2>
+      <p class="lead">Checking this computer for the components the engine needs.</p>
+      <table id="sysTable"></table>
+      <p id="pyHelp" class="hidden bad">Python 3.10+ was not found. Install it, then click "Re-check".
+        <a href="#" id="pyLink" style="color:var(--gold)">Download Python</a></p>
+      <button class="ghost" id="recheck" style="margin-top:12px;width:max-content">Re-check</button>
+    </section>
+
+    <section data-step="Install engine">
+      <h2>Install analytics engine</h2>
+      <p class="lead">Creates a private Python environment for this app and installs the quant, machine-learning and API libraries.</p>
+      <button class="primary" id="installBtn" style="width:max-content;margin-bottom:12px">Install engine</button>
+      <div id="log"></div>
+      <p id="installStatus"></p>
+    </section>
+
+    <section data-step="Market data">
+      <h2>Market and economic data</h2>
+      <p class="lead">Choose where prices come from. "Simulated" works offline and is clearly labeled SIMULATED everywhere in the app.</p>
+      <label>Price data provider</label>
+      <select id="provider"><option value="synthetic">Simulated (offline demo)</option><option value="polygon">Polygon.io</option><option value="csv">Local CSV files</option></select>
+      <div class="row"><div><label>Polygon API key</label><input id="POLYGON_API_KEY" type="password" placeholder="optional"></div>
+        <div><label>My Polygon plan includes real-time data</label><select id="POLYGON_REALTIME"><option value="false">No — label as delayed</option><option value="true">Yes — label as real-time</option></select></div></div>
+      <div class="row"><div><label>FRED API key (rates, CPI, payrolls)</label><input id="FRED_API_KEY" type="password" placeholder="optional"></div>
+        <div><label>SEC EDGAR contact (User-Agent: name + email)</label><input id="SEC_USER_AGENT" placeholder="Jane Doe jane@example.com"></div></div>
+      <label>Anthropic API key for the Executive Analyst narrative (optional)</label><input id="ANTHROPIC_API_KEY" type="password" placeholder="optional">
+    </section>
+
+    <section data-step="Brokerage">
+      <h2>Brokerage connections</h2>
+      <p class="lead">Paper trading is always on. Live connections use OAuth through official or authorized APIs and start read-only.</p>
+      <div class="box"><b>E*TRADE</b> — official API (OAuth 1.0a). Request a consumer key from E*TRADE's developer portal; use the sandbox until your production key is approved.
+        <div class="row"><div><label>Consumer key</label><input id="ETRADE_CONSUMER_KEY" type="password"></div><div><label>Consumer secret</label><input id="ETRADE_CONSUMER_SECRET" type="password"></div></div>
+        <label>Environment</label><select id="ETRADE_SANDBOX"><option value="true">Sandbox</option><option value="false">Production</option></select></div>
+      <div class="box"><b>Chase / J.P. Morgan Self-Directed Investing</b> — Chase does not offer a public trading API, so this connection is
+        <b>read-only</b> (balances, holdings, transactions, dividends) through an aggregator you authorize.
+        <div class="row"><div><label>Plaid client ID</label><input id="PLAID_CLIENT_ID" type="password"></div><div><label>Plaid secret</label><input id="PLAID_SECRET" type="password"></div></div></div>
+      <label>Starting paper-trading balance (USD)</label><input id="paperCash" type="number" value="100000">
+    </section>
+
+    <section data-step="Risk limits">
+      <h2>Risk limits</h2>
+      <p class="lead">Orders that break any limit are rejected before they reach a broker. Live trading stays disabled until you enable it in Settings.</p>
+      <div class="row"><div><label>Max position value (USD)</label><input id="maxPos" type="number" value="10000"></div>
+        <div><label>Max position (% of equity)</label><input id="maxPct" type="number" value="10"></div></div>
+      <div class="row"><div><label>Max portfolio exposure (%)</label><input id="maxExp" type="number" value="95"></div>
+        <div><label>Daily loss limit (USD) — locks trading for the day</label><input id="dailyLoss" type="number" value="1000"></div></div>
+      <label>Max orders per day</label><input id="maxOrders" type="number" value="25">
+    </section>
+
+    <section data-step="Security">
+      <h2>Security</h2>
+      <p class="lead">Secrets are encrypted with your operating system's keychain. Set a passcode to sign in to the dashboard and approve orders.</p>
+      <label>Username</label><input id="username" value="admin">
+      <div class="row"><div><label>Passcode (12+ characters)</label><input id="pass1" type="password"></div><div><label>Confirm passcode</label><input id="pass2" type="password"></div></div>
+      <label>Sign-in mode</label><select id="authMode"><option value="passcode">Require passcode (recommended)</option><option value="local-single-user">Single user on this device — no sign-in</option></select>
+      <p id="passMsg" class="bad"></p>
+    </section>
+
+    <section data-step="Finish">
+      <h2>Ready to launch</h2>
+      <p class="lead">Review your choices. Click Finish to save, start the engine and open the dashboard.</p>
+      <div class="box" id="summary"></div>
+      <p id="finishMsg"></p>
+    </section>
+
+    <footer><button class="ghost" id="back">Back</button><button class="primary" id="next">Next</button></footer>
+  </main>
+</div>
+<script src="wizard.js"></script>
+</body>
+</html>

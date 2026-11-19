@@ -1,0 +1,98 @@
+{
+  "name": "globalblocs-quant-desktop",
+  "productName": "GlobalBLOCS Quant",
+  "version": "1.0.0",
+  "description": "GlobalBLOCS Quantitative Trading & Investment Intelligence Platform (desktop)",
+  "author": "Heavy Duty Security Co., LLC",
+  "main": "main.js",
+  "scripts": {
+    "prebuild": "cd ../frontend && npm ci && npm run build",
+    "start": "electron .",
+    "dist:win": "electron-builder --win nsis",
+    "dist:mac": "electron-builder --mac dmg",
+    "dist:linux": "electron-builder --linux AppImage deb"
+  },
+  "devDependencies": {
+    "electron": "^33.2.0",
+    "electron-builder": "^25.1.8"
+  },
+  "build": {
+    "appId": "com.heavydutysecurity.globalblocs.quant",
+    "productName": "GlobalBLOCS Quant",
+    "directories": {
+      "output": "dist",
+      "buildResources": "build"
+    },
+    "files": [
+      "main.js",
+      "preload.js",
+      "wizard/**/*"
+    ],
+    "extraResources": [
+      {
+        "from": "../frontend/out",
+        "to": "web"
+      },
+      {
+        "from": "..",
+        "to": "engine",
+        "filter": [
+          "quant/**",
+          "backtesting/**",
+          "ml/**",
+          "agents/**",
+          "brokerage/**",
+          "data_pipelines/**",
+          "backend/**",
+          "requirements.txt",
+          "!**/__pycache__/**",
+          "!**/*.pyc"
+        ]
+      }
+    ],
+    "nsis": {
+      "oneClick": false,
+      "perMachine": false,
+      "allowElevation": true,
+      "allowToChangeInstallationDirectory": true,
+      "license": "build/license.txt",
+      "createDesktopShortcut": true,
+      "createStartMenuShortcut": true,
+      "shortcutName": "GlobalBLOCS Quant",
+      "runAfterFinish": true,
+      "deleteAppDataOnUninstall": false,
+      "include": "build/installer.nsh",
+      "artifactName": "GlobalBLOCS-Quant-Setup-${version}.${ext}"
+    },
+    "win": {
+      "target": "nsis"
+    },
+    "mac": {
+      "target": "dmg",
+      "category": "public.app-category.finance",
+      "hardenedRuntime": true
+    },
+    "dmg": {
+      "title": "GlobalBLOCS Quant Installer"
+    },
+    "linux": {
+      "target": [
+        "AppImage",
+        "deb"
+      ],
+      "category": "Finance"
+    },
+    "publish": [
+      {
+        "provider": "github",
+        "owner": "Whitney-Moss-ML-AI-Engineer",
+        "repo": "globalblocs-quant-platform",
+        "releaseType": "draft"
+      }
+    ]
+  },
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/Whitney-Moss-ML-AI-Engineer/globalblocs-quant-platform.git"
+  }
+}

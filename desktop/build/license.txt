@@ -1,0 +1,16 @@
+GLOBALBLOCS QUANT - END USER LICENSE AGREEMENT AND RISK DISCLOSURE
+Copyright (c) 2026 Heavy Duty Security Co., LLC. All rights reserved.
+
+1. License. You are granted a non-exclusive, non-transferable license to install and use this software for your own research and trading.
+
+2. No investment advice. The software produces quantitative research, model forecasts and trading signals. These are not investment, legal or tax advice, are not recommendations to buy or sell any security, and do not guarantee any return. Backtested and simulated results are hypothetical and have inherent limitations.
+
+3. Risk of loss. Trading securities, including options and intraday trading, involves substantial risk of loss. You are solely responsible for every order you approve.
+
+4. Order control. AI agents in the software can only propose orders. Orders are sent to a brokerage only after you approve them with an explicit confirmation and the automated risk checks pass. Live trading is disabled by default.
+
+5. Credentials. The software never requests or stores brokerage passwords. Access tokens are obtained through OAuth and stored encrypted using your operating system's keychain.
+
+6. Data. Market data may be real-time, delayed or simulated, and is labeled accordingly. Third-party data is subject to its provider's terms and licensing.
+
+7. Warranty disclaimer. THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND. IN NO EVENT SHALL THE AUTHORS BE LIABLE FOR ANY CLAIM, DAMAGES, TRADING LOSSES OR OTHER LIABILITY ARISING FROM USE OF THE SOFTWARE.
